@@ -9,13 +9,12 @@ import UIKit
 
 class HabitCollectionViewCell: UICollectionViewCell {
     
-    static let id = "HabitCell"
+    weak var progressBarUpdateDelegate: HabitsDelegate?
     
-    var habit: Habit? {
-         didSet {
-             updateUI()
-         }
-     }
+    private var currentHabit = Habit(name: "", date: Date(), color: UIColor())
+    
+    ///Identificator
+    static let id = "HabitCell"
     
     //MARK: - Properties
     
@@ -57,16 +56,8 @@ class HabitCollectionViewCell: UICollectionViewCell {
             systemName: "circle",
             withConfiguration: largeConfig
         )
-        let largeBoldDocFill = UIImage(
-            systemName: "checkmark.circle.fill",
-            withConfiguration: largeConfig
-        )
-        
         button.setImage(largeBoldDoc, for: .normal)
-        button.setImage(largeBoldDocFill, for: .selected)
-        button.tintColor = .green
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.isUserInteractionEnabled = true
         
         return button
     }()
@@ -77,9 +68,6 @@ class HabitCollectionViewCell: UICollectionViewCell {
         super.init(frame: frame)
         setupUI()
         setupConstraints()
-        
-
-        doneButton.addTarget(self, action: #selector(doneButtonTapped), for: .touchUpInside)
     }
 
     required init?(coder: NSCoder) {
@@ -88,61 +76,76 @@ class HabitCollectionViewCell: UICollectionViewCell {
     
     //MARK: - Configure
     
-    private func updateUI() {
-//        guard let habit = habit else {
-//            return
-//        }
-        
-//        habitTitle.text = habit.name
-//        habitTime.text = habit.dateString
-        
-    }
-    
-    
     func setupUI() {
         contentView.backgroundColor = .white
-        contentView.addSubview(counter)
-        contentView.addSubview(habitTime)
-        contentView.addSubview(habitTitle)
-        contentView.addSubview(doneButton)
+        addSubview(counter)
+        addSubview(habitTime)
+        addSubview(habitTitle)
+        addSubview(doneButton)
+        
+        doneButton.addTarget(self, action: #selector(checkHabit), for: .touchUpInside)
     }
     
     func setupConstraints() {
         
         NSLayoutConstraint.activate([
             
-            /// habitTitle constraints
-            habitTitle.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16),
-            habitTitle.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            ///habitTitle constraints
+            habitTitle.topAnchor.constraint(equalTo: topAnchor, constant: 16),
+            habitTitle.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 16),
 
-            /// habitTime constraints
+            ///habitTime constraints
             habitTime.topAnchor.constraint(equalTo: habitTitle.bottomAnchor, constant: 16),
-            habitTime.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            habitTime.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 16),
 
-            /// doneButton constraints
+            ///doneButton constraints
             doneButton.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            doneButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -25),
-//            doneButton.widthAnchor.constraint(equalToConstant: 40),
-//            doneButton.heightAnchor.constraint(equalToConstant: 40)
+            doneButton.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -25),
+            
+            ///counter constraints
             counter.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -16),
-            counter.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16)
+            counter.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 16)
         ])
 
     }
     
     //MARK: - Actions
     
+    func setupHabit(_ habit: Habit) {
+         
+         currentHabit = habit
+         
+        habitTitle.text = currentHabit.name
+        habitTitle.textColor = currentHabit.color
+         
+        habitTime.text = currentHabit.dateString
+         
+        counter.text = "Счетчик \(currentHabit.trackDates.count)"
+         
+        doneButton.tintColor = currentHabit.color
+         
+         if currentHabit.isAlreadyTakenToday {
+             setImageCheckButton("checkmark.circle.fill")
+         }
+     }
     
-    func setup(with habit: Habit) {
-        habitTitle.text = habit.name
-        habitTime.text = habit.dateString
-//        doneButton.isEnabled = true
-        doneButton.tintColor = habit.color
-        habitTitle.textColor = habit.color
- 
+    private func setImageCheckButton(_ imageName: String) {
+        doneButton.setBackgroundImage(UIImage(systemName: imageName), for: .normal)
     }
     
-    @objc func doneButtonTapped() {
-        doneButton.isSelected.toggle()
-    }
+    @objc private func checkHabit() {
+            
+            if !currentHabit.isAlreadyTakenToday {
+                
+                HabitsStore.shared.track(currentHabit)
+                HabitsStore.shared.save()
+                
+                setImageCheckButton("checkmark.circle.fill")
+                counter.text = "Счётчик: \(currentHabit.trackDates.count)"
+                
+                self.progressBarUpdateDelegate?.reloadProgressBar()
+            }
+            
+        }
+    
 }

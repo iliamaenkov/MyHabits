@@ -7,30 +7,51 @@
 
 import UIKit
 
+protocol HabitsDelegate: AnyObject {
+    func habitCreate()
+    func reloadProgressBar()
+}
+
+extension HabitsViewController: HabitsDelegate, HabitDetailsDelegate {
+    
+    func habitCreate() {
+        self.habitCollectionView.reloadData()
+    }
+    
+    func habitDetailDelete(at index: Int) {
+        self.habitCollectionView.deleteItems(at: [IndexPath(item: index, section: 1)])
+        reloadProgressBar()
+    }
+    
+    func reloadProgressBar() {
+        self.habitCollectionView.reloadItems(at: [IndexPath(row: 0, section: 0)])
+    }
+    
+    func habitDetailUpdate(habit: Habit, at index: Int) {
+        self.habitCollectionView.reloadItems(at: [IndexPath(row: index, section: 1)])
+    }
+}
+
 final class HabitsViewController: UIViewController {
     
-    static let hibitsIdent = "Привычки"
+    var store = HabitsStore.shared
+    
     
     //MARK: - UI Elements
     
-    lazy var layout: UICollectionViewFlowLayout = {
+    ///CollectionView
+    private lazy var layout: UICollectionViewFlowLayout = {
         let layout = UICollectionViewFlowLayout()
-        layout.minimumInteritemSpacing = 8
-        layout.minimumLineSpacing = 8
         layout.scrollDirection = .vertical
-    
+        
         return layout
     }()
 
-    lazy var habitCollectionView: UICollectionView = {
+    private lazy var habitCollectionView: UICollectionView = {
         let collectinView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         collectinView.translatesAutoresizingMaskIntoConstraints = false
+        collectinView.showsVerticalScrollIndicator = false
         collectinView.backgroundColor = .lightGray
-        collectinView.register(
-            HabitCollectionViewCell.self,
-            forCellWithReuseIdentifier: HabitCollectionViewCell.id
-        )
-        collectinView.contentInset = UIEdgeInsets(top: 18, left: 16, bottom: 12, right: 16)
         
         return collectinView
     }()
@@ -44,22 +65,24 @@ final class HabitsViewController: UIViewController {
         setupUI()
         setupConstraints()
         setupNavigation()
-        
-        habitCollectionView.dataSource = self
-        habitCollectionView.delegate = self
-        habitCollectionView.register(HabitCollectionViewCell.self, forCellWithReuseIdentifier: HabitCollectionViewCell.id)
     }
     
     //MARK: - Private
     
+    ///Navigation
     private func setupNavigation() {
-        navigationController?.navigationBar.standardAppearance = 
-        AppearanceManager.shared.navigationBarAppearance
-        navigationController?.navigationBar.compactAppearance = 
-        AppearanceManager.shared.navigationBarAppearance
-        navigationController?.navigationBar.scrollEdgeAppearance = 
-        AppearanceManager.shared.navigationBarAppearance
         
+        if let navigationController = navigationController {
+            navigationController
+                .setNavigationBarAppearance(
+                    NavigationControllerManager
+                        .shared
+                        .navigationBarAppearance
+                )
+        }
+        
+        navigationController?.navigationBar.prefersLargeTitles = true
+        navigationItem.largeTitleDisplayMode = .always
         
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .add,
@@ -68,19 +91,29 @@ final class HabitsViewController: UIViewController {
         )
         navigationItem.rightBarButtonItem?.tintColor = .purpleDark
         
-        navigationController?.navigationBar.tintColor = .systemBackground
-        navigationController?.navigationBar.prefersLargeTitles = true
-        
         title = "Сегодня"
         tabBarItem.title = "Привычки"
-        
     }
     
+    ///UI setup
     private func setupUI() {
         view.addSubview(habitCollectionView)
+        habitCollectionView.reloadData()
+        
+        habitCollectionView.dataSource = self
+        habitCollectionView.delegate = self
+        
+        habitCollectionView.register(
+            HabitCollectionViewCell.self,
+            forCellWithReuseIdentifier: HabitCollectionViewCell.id
+        )
+        habitCollectionView.register(
+            ProgressCollectionViewCell.self,
+            forCellWithReuseIdentifier: ProgressCollectionViewCell.id
+        )
     }
 
-    
+    ///Constraints
     private func setupConstraints() {
         
         NSLayoutConstraint.activate([
@@ -98,45 +131,17 @@ final class HabitsViewController: UIViewController {
     
     @objc private func addNewHabit(_ sender: Any) {
 
-        let habitViewController = HabitViewController()
-        habitViewController.delegate = self
+        let habitViewController = HabitViewController(habit: nil, index: nil)
+        habitViewController.habitsDelegate = self
         
         let navigationController = UINavigationController(rootViewController: habitViewController)
         navigationController.modalTransitionStyle = .coverVertical
         navigationController.modalPresentationStyle = .fullScreen
-
+        
         present(navigationController, animated: true, completion: nil)
     }
 
 
 }
 
-
-//MARK: - Extensions
-
-extension HabitsViewController: HabitViewControllerDelegate {
-    
-    func habitViewControllerDidCancel(_ habitViewController: HabitViewController) {
-        habitViewController.dismiss(animated: true, completion: nil)
-    }
-    
-    func habitViewControllerDidSave(_ habitViewController: HabitViewController, with habit: Habit) {
-        let store = HabitsStore.shared
-        store.habits.append(habit)
-        
-        if Thread.isMainThread {
-            // Update UI directly
-            let indexPath = IndexPath(item: store.habits.count - 1, section: 0)
-            habitCollectionView.insertItems(at: [indexPath])
-        } else {
-            // Dispatch UI update to the main thread
-            DispatchQueue.main.async {
-                let indexPath = IndexPath(item: store.habits.count - 1, section: 0)
-                self.habitCollectionView.insertItems(at: [indexPath])
-            }
-        }
-        // Dismiss the view controller
-        habitViewController.dismiss(animated: true, completion: nil)
-    }
-}
 

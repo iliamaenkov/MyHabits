@@ -8,8 +8,7 @@
 import UIKit
 
 final class InfoViewController: UIViewController {
-    
-    static let infoIdent = "Информация"
+
     
     //MARK: - UI Elements
     
@@ -41,6 +40,9 @@ final class InfoViewController: UIViewController {
         return text
     }()
     
+    
+    //MARK: - Lifecycle
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
@@ -51,19 +53,19 @@ final class InfoViewController: UIViewController {
     
     //MARK: - Private
      
+    ///Navigation
     private func setupNavigation() {
-        navigationController?.navigationBar.standardAppearance = 
-        AppearanceManager.shared.navigationBarAppearance
-        navigationController?.navigationBar.compactAppearance = 
-        AppearanceManager.shared.navigationBarAppearance
-        navigationController?.navigationBar.scrollEdgeAppearance = 
-        AppearanceManager.shared.navigationBarAppearance
         
-        navigationController?.navigationBar.tintColor = .systemBackground
-        
+        if let navigationController = navigationController {
+            navigationController
+                .setNavigationBarAppearance(
+                NavigationControllerManager.shared.navigationBarAppearance
+            )
+        }
         title = "Информация"
     }
     
+    ///UI setup
      private func setupUI() {
          
          view.backgroundColor = UIColor.white
@@ -73,17 +75,23 @@ final class InfoViewController: UIViewController {
          
      }
     
+    ///Constraints
     private func setupConstraints() {
+        
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            
+        ])
+        
+        NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 16),
             titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             titleLabel.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -16),
-
+        ])
+        
+        NSLayoutConstraint.activate([
             textLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 16),
             textLabel.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
             textLabel.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),

@@ -7,24 +7,23 @@
 
 import UIKit
 
-protocol HabitViewControllerDelegate: AnyObject {
-    func habitViewControllerDidCancel(_ habitViewController: HabitViewController)
-    func habitViewControllerDidSave(_ habitViewController: HabitViewController, with habit: Habit)
-}
-
-
-class HabitViewController: UIViewController {
+final class HabitViewController: UIViewController {
     
-    weak var delegate: HabitViewControllerDelegate?
+    ///Delegates
+    weak var habitsDelegate: HabitsDelegate?
+    weak var habitDetailsDelegate: HabitDetailsDelegate?
     
-//    var store = HabitsStore.shared
-    var selectedTime: Date = Date()
-    var selectedColor: UIColor = .purpleDark
-    var habit: Habit?
+    private var index: Int?
+    private var titleHabit: String?
+    private var colorHabit: UIColor
+    private var date: Date?
+    private var defaultColor: UIColor = .orange
+    private var currentHabit: Habit?
+    
 
     //MARK: - UI Elements
     
-    let scrollView: UIScrollView = {
+    private lazy var scrollView: UIScrollView = {
         let scrollView = UIScrollView()
         scrollView.showsVerticalScrollIndicator = false
         scrollView.showsHorizontalScrollIndicator = false
@@ -36,9 +35,9 @@ class HabitViewController: UIViewController {
     }()
     
     /// Habit name
-    let habitTitle: UILabel = {
+    private lazy var habitTitle: UILabel = {
         let label = UILabel()
-        label.text = .uppercased("название")()
+        label.text = "название".uppercased()
         label.translatesAutoresizingMaskIntoConstraints = false
         label.textColor = .black
         label.font = .SFProTextSemibold_Medium
@@ -46,18 +45,19 @@ class HabitViewController: UIViewController {
         return label
     }()
     
-    let habitTitleTextField: UITextField = {
+    private lazy var habitTextField: UITextField = {
         let textField = UITextField()
         textField.placeholder = "Бегать по утрам, спать 8 часов и т.п."
         textField.translatesAutoresizingMaskIntoConstraints = false
+        textField.textColor = .systemGray2
         
         return textField
     }()
     
     /// Habit color
-    let colorTitle: UILabel = {
+    private lazy var colorTitle: UILabel = {
         let label = UILabel()
-        label.text = .uppercased("цвет")()
+        label.text = "цвет".uppercased()
         label.translatesAutoresizingMaskIntoConstraints = false
         label.textColor = .black
         label.font = .SFProTextSemibold_Medium
@@ -65,7 +65,7 @@ class HabitViewController: UIViewController {
         return label
     }()
     
-    let colorButton: UIButton = {
+    private lazy var colorButton: UIButton = {
         let button = UIButton()
         button.backgroundColor = .orange
         button.layer.cornerRadius = 15
@@ -85,9 +85,9 @@ class HabitViewController: UIViewController {
     }()
     
     /// Habit time
-    let timeLabel: UILabel = {
+    private lazy var timeLabel: UILabel = {
         let label = UILabel()
-        label.text = .uppercased("время")()
+        label.text = "время".uppercased()
         label.translatesAutoresizingMaskIntoConstraints = false
         label.textColor = .black
         label.font = .SFProTextSemibold_Medium
@@ -95,7 +95,7 @@ class HabitViewController: UIViewController {
         return label
     }()
     
-    private let habitTimeText: UILabel = {
+    private lazy var habitTimeText: UILabel = {
         let label = UILabel()
         label.text = "Каждый день в"
         label.font = .SFProTextRegular_Big
@@ -105,7 +105,7 @@ class HabitViewController: UIViewController {
         return label
     }()
     
-    private var habitTime: UILabel = {
+    private lazy var habitTime: UILabel = {
         let label = UILabel()
         label.textColor = .purpleDark
         
@@ -119,7 +119,7 @@ class HabitViewController: UIViewController {
     }()
     
     
-    let timePicker: UIDatePicker = {
+    private lazy var timePicker: UIDatePicker = {
         let time = UIDatePicker()
         time.datePickerMode = .time
         time.preferredDatePickerStyle = .wheels
@@ -130,18 +130,116 @@ class HabitViewController: UIViewController {
         return time
     }()
     
+    ///DELETE Habit button
+    private lazy var deleteButton: UIButton = {
+        let button = UIButton()
+        
+        button.setTitle("Удалить привычку", for: .normal)
+        button.setTitleColor(.red, for: .normal)
+        button.titleLabel?.font = .SFProTextRegular_Big
+        button.titleLabel?.textAlignment = .center
+        
+        button.addTarget(self, action: #selector(deleteHabitAlert), for: .touchUpInside)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        
+        return button
+    }()
+    
+//MARK: - Alerts
+    
+    private lazy var messageDeleteAlertController = UIAlertController(
+        title: "Удалить привычку",
+        message: "Вы хотите удалить привычку_title_habbit_?",
+        preferredStyle: .alert
+    )
+    
+    private func messageDeleteAlertButtons() {
+        let cancelButton = UIAlertAction(title: "Отмена", style: .default)
+        let deleteButton = UIAlertAction(title: "Удалить", style: .destructive) {_ in
+            self.deleteHabit(self.index!)
+        }
+        messageDeleteAlertController.addAction(cancelButton)
+        messageDeleteAlertController.addAction(deleteButton)
+    }
+    
+    private lazy var messageSaveAlertController = UIAlertController(
+        title: "Ошибка",
+        message: "Заполните название привычки",
+        preferredStyle: .alert
+    )
+    
+    private func messageSaveAlertButton() {
+        let okButton = UIAlertAction(title: "OK", style: .default)
+        messageSaveAlertController.addAction(okButton)
+    }
+    
+    // ALERT Delete action
 
+    @objc private func deleteHabitAlert() {
+          if let textHabit = habitTextField.text {
+              messageDeleteAlertController.message = messageDeleteAlertController.message?.replacingOccurrences(of: "_title_habbit_", with: (textHabit != "") ? "\n\"\(textHabit)\"": "")
+          }
+          self.present(messageDeleteAlertController, animated: true)
+      }
+    
+    @objc private func deleteHabit(_ index: Int) {
+        self.dismiss(animated: true)
+        HabitsStore.shared.habits.remove(at: index)
+        habitDetailsDelegate?.habitDetailDelete(at: index)
+    }
+    
+
+    //MARK: - Init
+    
+    init(habit: Habit?, index: Int?) {
+        
+        self.index = index
+        self.titleHabit = habit?.name
+        self.colorHabit = habit?.color ?? defaultColor
+        self.date = habit?.date
+        
+        if index != nil {
+            self.currentHabit = habit!
+        }
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
     
     //MARK: - Lifecycle
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        messageDeleteAlertButtons()
+        messageSaveAlertButton()
+        
         setupUI()
         setupNavigation()
         setupConstraints()
+        setupFields()
+        setHabitTime()
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        navigationController?.navigationBar.prefersLargeTitles = false
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        navigationController?.navigationBar.prefersLargeTitles = true
     }
     
     //MARK: - Private
+    
+    private func setupFields() {
+        deleteButton.isHidden = index == nil ? true: false
+        habitTextField.text = titleHabit
+        habitTextField.textColor = colorHabit
+        habitTextField.font = .SFProTextRegular_Big
+        colorButton.backgroundColor = colorHabit
+       }
     
     private func setupUI() {
         view.backgroundColor = .white
@@ -152,17 +250,21 @@ class HabitViewController: UIViewController {
         scrollView.addSubview(timeLabel)
         scrollView.addSubview(colorButton)
         scrollView.addSubview(colorTitle)
-        scrollView.addSubview(habitTitleTextField)
+        scrollView.addSubview(habitTextField)
         scrollView.addSubview(habitTitle)
+        scrollView.addSubview(deleteButton)
         
-        habitTitleTextField.delegate = self
+        habitTextField.delegate = self
         
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow(_:)), name: UIResponder.keyboardWillShowNotification, object: nil)
         
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide(_:)), name: UIResponder.keyboardWillHideNotification, object: nil)
     }
     
+    ///Naviigation
     private func setupNavigation() {
+        
+        title = "Создать"
         
         if let navigationController = navigationController {
             navigationController
@@ -191,11 +293,10 @@ class HabitViewController: UIViewController {
         navigationItem.leftBarButtonItem?.tintColor = .purpleDark
         
         navigationController?.navigationBar.isTranslucent = false
-        
-        title = "Создать"
     }
     
     
+    ///Constraints
     private func setupConstraints() {
         
         let safeAreaGuide = view.safeAreaLayoutGuide
@@ -206,52 +307,45 @@ class HabitViewController: UIViewController {
             scrollView.trailingAnchor.constraint(equalTo: safeAreaGuide.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: safeAreaGuide.bottomAnchor),
         ])
-        
         NSLayoutConstraint.activate([
             habitTitle.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
             habitTitle.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 16),
         ])
-        
         NSLayoutConstraint.activate([
-            habitTitleTextField.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
-            habitTitleTextField.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -16),
-            habitTitleTextField.topAnchor.constraint(equalTo: habitTitle.bottomAnchor, constant: 8),
+            habitTextField.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
+            habitTextField.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -16),
+            habitTextField.topAnchor.constraint(equalTo: habitTitle.bottomAnchor, constant: 8),
         ])
-        
         NSLayoutConstraint.activate([
             colorTitle.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
-            colorTitle.topAnchor.constraint(equalTo: habitTitleTextField.bottomAnchor, constant: 16),
+            colorTitle.topAnchor.constraint(equalTo: habitTextField.bottomAnchor, constant: 16),
         ])
-        
         NSLayoutConstraint.activate([
             colorButton.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
             colorButton.topAnchor.constraint(equalTo: colorTitle.bottomAnchor, constant: 16),
             colorButton.widthAnchor.constraint(equalToConstant: 30),
             colorButton.heightAnchor.constraint(equalTo: colorButton.widthAnchor),
         ])
-        
         NSLayoutConstraint.activate([
             timeLabel.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
             timeLabel.topAnchor.constraint(equalTo: colorButton.bottomAnchor, constant: 16),
         ])
-        
         NSLayoutConstraint.activate([
             habitTimeText.topAnchor.constraint(equalTo: timeLabel.bottomAnchor, constant: 16),
             habitTimeText.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
         ])
-        
         NSLayoutConstraint.activate([
             habitTime.topAnchor.constraint(equalTo: timeLabel.bottomAnchor, constant: 16),
             habitTime.leadingAnchor.constraint(equalTo: habitTimeText.trailingAnchor, constant: 8),
         ])
-        
-        
         NSLayoutConstraint.activate([
             timePicker.topAnchor.constraint(equalTo: timeLabel.bottomAnchor, constant: 40),
             timePicker.centerXAnchor.constraint(equalTo: scrollView.centerXAnchor),
         ])
-        
-        
+        NSLayoutConstraint.activate([
+            deleteButton.bottomAnchor.constraint(equalTo: scrollView.safeAreaLayoutGuide.bottomAnchor, constant: -18),
+            deleteButton.centerXAnchor.constraint(equalTo: scrollView.centerXAnchor)
+        ])
     }
 
     //MARK: - Actions
@@ -273,21 +367,36 @@ class HabitViewController: UIViewController {
     }
     
     ///SAVE
-    @objc func saveButtonTapped() {
-        setHabitTime()
-        ///Create a Habit object with the selected values
-        let newHabit = Habit(
-            name: habitTitleTextField.text ?? "",
-            date: timePicker.date,
-            trackDates: [],
-            color: selectedColor
-        )
-        
-        ///Inform the delegate about the new habit
-        delegate?.habitViewControllerDidSave(self, with: newHabit)
-        
-        self.dismiss(animated: true, completion: nil)
-    }
+    @objc private func saveButtonTapped() {
+            guard habitTextField.text != "" else {
+                self.present(messageSaveAlertController, animated: true)
+                return
+            }
+            
+            let storeHabits = HabitsStore.shared
+            
+            self.dismiss(animated: true, completion: nil)
+            
+            if self.index == nil {
+                let newHabit = Habit(
+                    name: habitTextField.text!,
+                    date: timePicker.date,
+                    color: colorButton.backgroundColor!
+                )
+                storeHabits.habits.append(newHabit)
+                
+                habitsDelegate?.habitCreate()
+                
+            } else {
+                currentHabit?.name = habitTextField.text!
+                currentHabit?.date = timePicker.date
+                currentHabit?.color = colorButton.backgroundColor!
+                
+                storeHabits.habits[index!] = currentHabit!
+                
+                habitDetailsDelegate?.habitDetailUpdate(habit: currentHabit!, at: index!)
+            }
+        }
 
 
 
@@ -317,8 +426,7 @@ class HabitViewController: UIViewController {
 extension HabitViewController: UIColorPickerViewControllerDelegate {
     func colorPickerViewController(_ viewController: UIColorPickerViewController, didSelect color: UIColor, continuously: Bool) {
         colorButton.backgroundColor = color
-        habitTitleTextField.textColor = color
-        selectedColor = color
+        habitTextField.textColor = color
     }
 }
 
@@ -329,6 +437,8 @@ extension HabitViewController: UITextFieldDelegate {
         ///Hide the keyboard when the return key is pressed
         textField.resignFirstResponder()
         textField.font = .SFProTextSemibold_Big
+        textField.textColor = colorHabit
+        
         return true
     }
     
