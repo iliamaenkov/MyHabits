@@ -1,0 +1,10 @@
+/* 
+  Localizable.strings
+  MyHabits
+
+  Created by Ilya Maenkov on 10.11.2023.
+  
+*/
+
+"SaveButtonTitle" = "Сохранить";
+"CancelButtonTitle" = "Отмена";
